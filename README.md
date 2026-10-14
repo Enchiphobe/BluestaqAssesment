@@ -20,6 +20,10 @@ These were things I was keeping in mind, but pushed back to the end of the proje
 - Add a UI. Not part of the prompt so I didn't bother, but it's an obvious next step.
 - Divorce notes from teams. Notes are currently scoped just to teams, but making them shareable between teams would save users a lot of copy-pasting time.
 
+### What I would stop doing
+- Developing on a Windows machine. This really slowed me down, I'm not used to Powershell. 
+- Using plain node. A framework would be cleaner and more production ready. 
+
 
 # Notes API
 
