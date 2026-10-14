@@ -9,7 +9,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/api.test.ts"
+    "test": "tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
