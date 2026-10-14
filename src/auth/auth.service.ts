@@ -2,9 +2,11 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomUUID } from "crypto";
 import { BCRYPT_ROUNDS, JWT_EXPIRES_IN, JWT_SECRET } from "../config";
+import { db } from "../db";
 import { ConflictError, UnauthorizedError, ValidationError } from "../errors";
+import * as teamsRepository from "../teams/teams.repository";
 import * as usersRepository from "../users/users.repository";
-import { User } from "../types";
+import { User, UserWithHash } from "../types";
 
 // Compared against when the email is unknown, so login takes the same time
 // whether or not an account exists.
@@ -40,14 +42,30 @@ export async function register(input: {
     throw new ConflictError("An account with that email already exists");
   }
 
-  const user = {
+  // The role is never read from the request, so nobody can self-register as an admin.
+  const user: UserWithHash = {
     id: randomUUID(),
     email: normalizedEmail,
     name: (name as string).trim(),
+    role: "user",
     passwordHash: await bcrypt.hash(password as string, BCRYPT_ROUNDS),
     createdAt: new Date().toISOString(),
   };
-  usersRepository.insert(user);
+
+  // Every user gets a personal team. Both inserts succeed or neither does.
+  db.transaction(() => {
+    usersRepository.insert(user);
+    teamsRepository.insertWithManager(
+      {
+        id: randomUUID(),
+        name: "Personal",
+        visibility: "personal",
+        createdBy: user.id,
+        createdAt: user.createdAt,
+      },
+      user.id
+    );
+  })();
 
   const { passwordHash, ...publicUser } = user;
   return { user: publicUser, token: signToken(user.id) };

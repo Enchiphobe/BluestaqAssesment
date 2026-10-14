@@ -45,10 +45,9 @@ function cleanTags(tags: string[]): string[] {
   return [...new Set(tags.map((t) => t.trim()))];
 }
 
-/** Members may change their own notes; admins and owners may change any. */
+/** Managers (and admins, who get a manager membership) may change any note; members only their own. */
 function assertCanModify(membership: Membership, note: Note): void {
-  const isModerator = membership.role === "owner" || membership.role === "admin";
-  if (!isModerator && note.authorId !== membership.userId) {
+  if (membership.role !== "manager" && note.authorId !== membership.userId) {
     throw new ForbiddenError("You can only modify your own notes");
   }
 }

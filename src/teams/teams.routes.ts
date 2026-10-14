@@ -1,46 +1,56 @@
 import { Router } from "express";
 import { getUser } from "../middleware/authenticate";
-import { getMembership, requireTeamMember } from "../middleware/requireTeamMember";
+import { getMembership, requireTeamAccess } from "../middleware/requireTeamAccess";
 import * as teamsService from "./teams.service";
 
 const router = Router();
 
+// Create a team. Body: { name, visibility?: "public" | "private" } (default private)
 router.post("/", (req, res) => {
-  res.status(201).json(teamsService.create(getUser(req), req.body?.name));
+  res.status(201).json(teamsService.create(getUser(req), req.body ?? {}));
 });
 
+// My teams. Admins can pass ?all=true to list every team.
 router.get("/", (req, res) => {
-  res.json(teamsService.listForUser(getUser(req)));
+  const user = getUser(req);
+  res.json(req.query.all === "true" ? teamsService.listAll(user) : teamsService.listForUser(user));
 });
 
-router.post("/join", (req, res) => {
-  res.json(teamsService.joinByCode(getUser(req), req.body?.joinCode));
+// Public teams I haven't joined. Must be declared before "/:teamId".
+router.get("/public", (req, res) => {
+  res.json(teamsService.listPublic(getUser(req)));
 });
 
-router.get("/:teamId", requireTeamMember, (req, res) => {
+// Join a public team. Deliberately has no requireTeamAccess: you aren't a member yet.
+router.post("/:teamId/join", (req, res) => {
+  teamsService.join(getUser(req), req.params.teamId as string);
+  res.status(204).end();
+});
+
+router.get("/:teamId", requireTeamAccess, (req, res) => {
   res.json(teamsService.get(getMembership(req)));
 });
 
-router.delete("/:teamId", requireTeamMember, (req, res) => {
+router.patch("/:teamId", requireTeamAccess, (req, res) => {
+  res.json(teamsService.update(getMembership(req), req.body ?? {}));
+});
+
+router.delete("/:teamId", requireTeamAccess, (req, res) => {
   teamsService.remove(getMembership(req));
   res.status(204).end();
 });
 
-router.post("/:teamId/join-code", requireTeamMember, (req, res) => {
-  res.json(teamsService.regenerateJoinCode(getMembership(req)));
-});
-
-router.post("/:teamId/members", requireTeamMember, (req, res) => {
+router.post("/:teamId/members", requireTeamAccess, (req, res) => {
   const member = teamsService.addMember(getMembership(req), req.body?.email, req.body?.role);
   res.status(201).json(member);
 });
 
-router.patch("/:teamId/members/:userId", requireTeamMember, (req, res) => {
+router.patch("/:teamId/members/:userId", requireTeamAccess, (req, res) => {
   teamsService.changeRole(getMembership(req), req.params.userId as string, req.body?.role);
   res.status(204).end();
 });
 
-router.delete("/:teamId/members/:userId", requireTeamMember, (req, res) => {
+router.delete("/:teamId/members/:userId", requireTeamAccess, (req, res) => {
   teamsService.removeMember(getMembership(req), req.params.userId as string);
   res.status(204).end();
 });

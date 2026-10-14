@@ -1,9 +1,10 @@
 import express from "express";
 import authRoutes from "./auth/auth.routes";
+import usersRoutes from "./users/users.routes";
 import teamsRoutes from "./teams/teams.routes";
 import notesRoutes from "./notes/notes.routes";
 import { authenticate } from "./middleware/authenticate";
-import { requireTeamMember } from "./middleware/requireTeamMember";
+import { requireTeamAccess } from "./middleware/requireTeamAccess";
 import { errorHandler, notFound } from "./middleware/errorHandler";
 
 const app = express();
@@ -15,9 +16,10 @@ app.use("/auth", authRoutes);
 
 // Everything below requires a valid login
 app.use(authenticate);
+app.use("/users", usersRoutes);
 app.use("/teams", teamsRoutes);
-// Notes live under a team, so membership is checked before any note route runs
-app.use("/teams/:teamId/notes", requireTeamMember, notesRoutes);
+// Notes live under a team, so access is checked before any note route runs
+app.use("/teams/:teamId/notes", requireTeamAccess, notesRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

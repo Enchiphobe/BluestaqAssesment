@@ -16,21 +16,27 @@ db.exec(`
     id           TEXT PRIMARY KEY,
     email        TEXT NOT NULL UNIQUE,
     name         TEXT NOT NULL,
+    role         TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
     passwordHash TEXT NOT NULL,
     createdAt    TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS teams (
-    id        TEXT PRIMARY KEY,
-    name      TEXT NOT NULL,
-    joinCode  TEXT NOT NULL UNIQUE,
-    createdAt TEXT NOT NULL
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    visibility TEXT NOT NULL CHECK (visibility IN ('public', 'private', 'personal')),
+    createdBy  TEXT NOT NULL REFERENCES users(id),
+    createdAt  TEXT NOT NULL
   );
+
+  -- At most one personal team per user, enforced by the database itself.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_one_personal_team
+    ON teams(createdBy) WHERE visibility = 'personal';
 
   CREATE TABLE IF NOT EXISTS memberships (
     userId   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     teamId   TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    role     TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+    role     TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('manager', 'member')),
     joinedAt TEXT NOT NULL,
     PRIMARY KEY (userId, teamId)
   );

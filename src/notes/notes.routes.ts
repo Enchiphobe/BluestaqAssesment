@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getMembership } from "../middleware/requireTeamMember";
+import { getMembership } from "../middleware/requireTeamAccess";
 import * as notesService from "./notes.service";
 
 // Mounted at /teams/:teamId/notes, behind authenticate + requireTeamMember.

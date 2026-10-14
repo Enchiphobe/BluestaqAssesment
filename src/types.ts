@@ -1,9 +1,12 @@
-export type Role = "owner" | "admin" | "member";
+export type GlobalRole = "admin" | "user";
+export type TeamRole = "manager" | "member";
+export type Visibility = "public" | "private" | "personal";
 
 export interface User {
   id: string;
   email: string;
   name: string;
+  role: GlobalRole;
   createdAt: string;
 }
 
@@ -14,25 +17,32 @@ export interface UserWithHash extends User {
 export interface Team {
   id: string;
   name: string;
-  joinCode: string;
+  visibility: Visibility;
+  createdBy: string;
   createdAt: string;
 }
 
 export interface TeamWithRole extends Team {
-  role: Role;
+  role: TeamRole;
+}
+
+export interface PublicTeam {
+  id: string;
+  name: string;
+  createdAt: string;
 }
 
 export interface Membership {
   userId: string;
   teamId: string;
-  role: Role;
+  role: TeamRole;
 }
 
 export interface Member {
   userId: string;
   name: string;
   email: string;
-  role: Role;
+  role: TeamRole;
   joinedAt: string;
 }
 

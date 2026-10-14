@@ -1,18 +1,25 @@
-import { randomBytes, randomUUID } from "crypto";
-import {
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-} from "../errors";
+import { randomUUID } from "crypto";
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import * as usersRepository from "../users/users.repository";
-import { Member, Membership, Role, Team, TeamWithRole, User } from "../types";
+import { Member, Membership, PublicTeam, Team, TeamRole, TeamWithRole, User } from "../types";
 import * as teamsRepository from "./teams.repository";
 
-const isAdminOrOwner = (role: Role) => role === "owner" || role === "admin";
+// ---------- Helpers ----------
 
-function newJoinCode(): string {
-  return randomBytes(5).toString("hex").toUpperCase(); // e.g. "9F3A1C07BE"
+function getTeam(teamId: string): Team {
+  const team = teamsRepository.findById(teamId);
+  if (!team) throw new NotFoundError("Team not found");
+  return team;
+}
+
+function assertManager(actor: Membership): void {
+  if (actor.role !== "manager") throw new ForbiddenError("Only managers can do that");
+}
+
+function assertNotPersonal(team: Team): void {
+  if (team.visibility === "personal") {
+    throw new ForbiddenError("Personal teams can't be shared or changed");
+  }
 }
 
 function parseName(name: unknown): string {
@@ -22,70 +29,101 @@ function parseName(name: unknown): string {
   return name.trim();
 }
 
-function parseRole(role: unknown): Role {
-  if (role !== "admin" && role !== "member") {
-    throw new ValidationError(["role must be 'admin' or 'member'"]);
+// "personal" is deliberately not accepted: personal teams are only created at registration.
+function parseVisibility(value: unknown): "public" | "private" {
+  if (value !== "public" && value !== "private") {
+    throw new ValidationError(["visibility must be 'public' or 'private'"]);
   }
-  return role;
+  return value;
 }
 
-export function create(user: User, nameInput: unknown): TeamWithRole {
+function parseTeamRole(value: unknown): TeamRole {
+  if (value !== "manager" && value !== "member") {
+    throw new ValidationError(["role must be 'manager' or 'member'"]);
+  }
+  return value;
+}
+
+// ---------- Teams ----------
+
+export function create(user: User, input: { name?: unknown; visibility?: unknown }): TeamWithRole {
   const team: Team = {
     id: randomUUID(),
-    name: parseName(nameInput),
-    joinCode: newJoinCode(),
+    name: parseName(input.name),
+    visibility: input.visibility === undefined ? "private" : parseVisibility(input.visibility),
+    createdBy: user.id,
     createdAt: new Date().toISOString(),
   };
-  teamsRepository.insertWithOwner(team, user.id);
-  return { ...team, role: "owner" };
+  teamsRepository.insertWithManager(team, user.id);
+  return { ...team, role: "manager" };
 }
 
-export function listForUser(user: User): Omit<TeamWithRole, "joinCode">[] {
-  // The join code is only shown to admins/owners, via get().
-  return teamsRepository.listForUser(user.id).map(({ joinCode, ...team }) => team);
+export function listForUser(user: User): TeamWithRole[] {
+  return teamsRepository.listForUser(user.id);
 }
 
-export function get(membership: Membership): {
-  team: Omit<Team, "joinCode"> & { joinCode?: string };
-  role: Role;
-  members: Member[];
-} {
-  const team = teamsRepository.findById(membership.teamId);
-  if (!team) throw new NotFoundError("Team not found");
+export function listAll(user: User): Team[] {
+  if (user.role !== "admin") throw new ForbiddenError("Only admins can list every team");
+  return teamsRepository.listAll();
+}
 
-  const { joinCode, ...rest } = team;
+export function listPublic(user: User): PublicTeam[] {
+  return teamsRepository.listPublicNotJoined(user.id);
+}
+
+export function get(actor: Membership): { team: Team; role: TeamRole; members: Member[] } {
   return {
-    team: isAdminOrOwner(membership.role) ? team : rest,
-    role: membership.role,
-    members: teamsRepository.listMembers(team.id),
+    team: getTeam(actor.teamId),
+    role: actor.role,
+    members: teamsRepository.listMembers(actor.teamId),
   };
 }
 
-export function joinByCode(user: User, codeInput: unknown): TeamWithRole {
-  if (typeof codeInput !== "string" || !codeInput.trim()) {
-    throw new ValidationError(["joinCode is required"]);
-  }
-  const team = teamsRepository.findByJoinCode(codeInput.trim().toUpperCase());
-  if (!team) throw new NotFoundError("No team matches that join code");
+export function update(actor: Membership, input: { name?: unknown; visibility?: unknown }): Team {
+  assertManager(actor);
+  const team = getTeam(actor.teamId);
+  assertNotPersonal(team);
 
-  if (teamsRepository.getMembership(team.id, user.id)) {
-    throw new ConflictError("You are already a member of this team");
+  if (input.name === undefined && input.visibility === undefined) {
+    throw new ValidationError(["provide name and/or visibility"]);
   }
-  teamsRepository.addMember(team.id, user.id, "member");
-  return { ...team, role: "member" };
+  if (input.name !== undefined) team.name = parseName(input.name);
+  if (input.visibility !== undefined) team.visibility = parseVisibility(input.visibility);
+
+  teamsRepository.update(team);
+  return team;
 }
 
-export function addMember(actor: Membership, emailInput: unknown, roleInput: unknown): Member {
-  if (!isAdminOrOwner(actor.role)) {
-    throw new ForbiddenError("Only admins and owners can add members");
+export function remove(actor: Membership): void {
+  assertManager(actor);
+  assertNotPersonal(getTeam(actor.teamId));
+  teamsRepository.remove(actor.teamId);
+}
+
+// ---------- Joining ----------
+
+/** Self-service join. Only public teams; everything else looks like "not found". */
+export function join(user: User, teamId: string): void {
+  const team = teamsRepository.findById(teamId);
+  if (!team || team.visibility !== "public") {
+    throw new NotFoundError("No public team with that ID");
   }
+  if (teamsRepository.getMembership(teamId, user.id)) {
+    throw new ConflictError("You are already a member of this team");
+  }
+  teamsRepository.addMember(teamId, user.id, "member");
+}
+
+// ---------- Members ----------
+
+export function addMember(actor: Membership, emailInput: unknown, roleInput: unknown): Member {
+  assertManager(actor);
+  assertNotPersonal(getTeam(actor.teamId));
+
   if (typeof emailInput !== "string" || !emailInput.trim()) {
     throw new ValidationError(["email is required"]);
   }
-  const role = roleInput === undefined ? "member" : parseRole(roleInput);
-  if (role === "admin" && actor.role !== "owner") {
-    throw new ForbiddenError("Only the owner can add admins");
-  }
+  const role = roleInput === undefined ? "member" : parseTeamRole(roleInput);
 
   const target = usersRepository.findByEmail(emailInput.trim().toLowerCase());
   if (!target) throw new NotFoundError("No user with that email");
@@ -98,44 +136,36 @@ export function addMember(actor: Membership, emailInput: unknown, roleInput: unk
 }
 
 export function removeMember(actor: Membership, targetUserId: string): void {
+  assertNotPersonal(getTeam(actor.teamId));
+
   const target = teamsRepository.getMembership(actor.teamId, targetUserId);
   if (!target) throw new NotFoundError("That user is not a member of this team");
 
-  if (target.role === "owner") {
-    throw new ForbiddenError("The owner can't be removed. Delete the team instead.");
+  // Anyone may leave; removing someone else takes a manager.
+  if (actor.userId !== targetUserId) assertManager(actor);
+
+  if (target.role === "manager" && teamsRepository.countManagers(actor.teamId) <= 1) {
+    throw new ForbiddenError(
+      "A team must keep at least one manager. Promote someone else first, or delete the team."
+    );
   }
-
-  const isSelf = actor.userId === targetUserId;
-  const allowed =
-    isSelf || // anyone (except the owner) may leave
-    actor.role === "owner" ||
-    (actor.role === "admin" && target.role === "member");
-  if (!allowed) throw new ForbiddenError("You can't remove that member");
-
   teamsRepository.removeMember(actor.teamId, targetUserId);
 }
 
 export function changeRole(actor: Membership, targetUserId: string, roleInput: unknown): void {
-  if (actor.role !== "owner") throw new ForbiddenError("Only the owner can change roles");
-  const role = parseRole(roleInput);
+  assertManager(actor);
+  assertNotPersonal(getTeam(actor.teamId));
+  const role = parseTeamRole(roleInput);
 
   const target = teamsRepository.getMembership(actor.teamId, targetUserId);
   if (!target) throw new NotFoundError("That user is not a member of this team");
-  if (target.role === "owner") throw new ForbiddenError("The owner's role can't be changed");
 
-  teamsRepository.updateRole(actor.teamId, targetUserId, role);
-}
-
-export function regenerateJoinCode(actor: Membership): { joinCode: string } {
-  if (!isAdminOrOwner(actor.role)) {
-    throw new ForbiddenError("Only admins and owners can regenerate the join code");
+  if (
+    target.role === "manager" &&
+    role === "member" &&
+    teamsRepository.countManagers(actor.teamId) <= 1
+  ) {
+    throw new ForbiddenError("A team must keep at least one manager");
   }
-  const joinCode = newJoinCode();
-  teamsRepository.updateJoinCode(actor.teamId, joinCode);
-  return { joinCode };
-}
-
-export function remove(actor: Membership): void {
-  if (actor.role !== "owner") throw new ForbiddenError("Only the owner can delete the team");
-  teamsRepository.remove(actor.teamId);
+  teamsRepository.updateRole(actor.teamId, targetUserId, role);
 }
