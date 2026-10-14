@@ -1,5 +1,25 @@
-# BluestaqAssesment
-Assessment for Bluestaq
+# Bluestaq Assesment
+This Repository was created as part of an assesment for BlueStaq.
+
+## Design Decisions
+### Language and Framework
+This required very little thought. I was building on my personal Windows desktop, which I almost never use for development. I had no languages or frameworks installed or set up. Just VSCode. I picked plain node and no framework for speed to deploy, since it could all be set up in about 5 minutes. In a production or corporate environment, the result would likely be different, but the considerations would likely be similar. For an app targetting a small number of teams, designed to be usable quickly, choosing something that'll get devs up quickly and the product launched sooner are critical considerations. But it'd probably result in SpringBoot or something the team is already very familiar with.
+
+### Design Decisions
+#### Authorization Structure
+I wrestled with how to set up authorization. The initial design included one top-level owner, team admins, and regular members. This worked cleanly for a pretty stagnant use case, but didn't reflect how I've seen multiple interactive teams function. Teams get created and destroyed semi-frequently, sometimes folks are members of one team but owners of another, etc. And this structure also didn't cleanly support personal notes. I decided to migrate the auth structure to one with two top-level roles: admin and user. Admins can do everything, usershave resource-scoped permissions on a given team. They would all be managers of their own personal team as well. With this in place, I had to figure out how to add/remove members to a given team. My initial design included managers inviting users to teams with an email code - but I did not have time to implement such functionality. So I allowed them to just edit the teams with an API call. I also realized this would be secure, but not really functional for many types of teams. So I also created two types of teams - public and private. Public ones could be joined by anybody, private required adding by a manager.
+
+#### Data
+I initially just had notes stored as jsons locally. This worked as a proof of concept, but wasn't very robust and could not handle growth well. In a production environment I would probably set up a DynamoDB to scale well and handle schema updates cleanly as the app grew. But implementing that in a local-only app would be too difficult in three hours. I split the difference and set up an SQLite DB. Testing it was, initially, annoying, because I had to register users and stuff, so I added a seeding script to make it usable right at deploy. I was pretty proud of that - it would have no effect on production performance but making development easier and faster is always nice.
+
+#### Operational Excellence
+These were things I was keeping in mind, but pushed back to the end of the project. I wanted to add normal latency and reliability safeguards: pagination, throttling. But in order to deliver a full feature suite sooner, pushed them to the end and therefore did not test them as well as I would have liked. 
+
+### What I would change/do next
+- Add an MCP layer. REST APIs are cool but the future is MCPs. I think if you're building new APIs, you have to consider that humans are going to stop using them in the near future, it'll just be agents. 
+- Add a UI. Not part of the prompt so I didn't bother, but it's an obvious next step.
+- Divorce notes from teams. Notes are currently scoped just to teams, but making them shareable between teams would save users a lot of copy-pasting time.
+
 
 # Notes API
 
@@ -216,6 +236,7 @@ All routes below require a valid `Authorization: Bearer <token>` header unless t
 | GET | `/teams/public` | logged in |
 | POST | `/teams/:teamId/join` | logged in |
 | GET | `/teams/:teamId` | team member or admin |
+| GET | `/teams/:teamId/members` | team member or admin |
 | PATCH | `/teams/:teamId` `{name?, visibility?}` | team manager or admin |
 | DELETE | `/teams/:teamId` | team manager or admin |
 | POST | `/teams/:teamId/members` `{email, role?}` | team manager or admin |
@@ -227,6 +248,10 @@ All routes below require a valid `Authorization: Bearer <token>` header unless t
 | GET | `/teams/:teamId/notes/:noteId` | team member or admin |
 | PATCH | `/teams/:teamId/notes/:noteId` `{title?, content?, tags?, pinned?}` | note author, team manager, or admin |
 | DELETE | `/teams/:teamId/notes/:noteId` | note author, team manager, or admin |
+
+Collection endpoints accept `?page=` and `?limit=`. The defaults are page 1 and 25 items; the maximum page size is 100. Pagination metadata is returned in the `X-Page`, `X-Page-Size`, `X-Total-Count`, and `X-Total-Pages` response headers. This applies to users, team lists, team members, and notes.
+
+Requests are limited to 300 per IP every 15 minutes. Registration is additionally limited to 10 attempts per IP per hour. A limited request returns `429 Too Many Requests`. If the API is behind a reverse proxy, configure Express to trust only the proxy hops you control so client IP-based limits work correctly.
 
 Access rules:
 
