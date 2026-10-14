@@ -1,0 +1,90 @@
+# Use with the "REST Client" extension in VSCode (humao.rest-client).
+# Click "Send Request" above each ### block, top to bottom.
+
+@host = http://localhost:3000
+
+### Register (run once per user; change the email to create more users)
+# @name register
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "password123", "name": "Alice" }
+
+### Login
+# @name login
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "password123" }
+
+@token = {{login.response.body.token}}
+
+### Who am I
+GET {{host}}/auth/me
+Authorization: Bearer {{token}}
+
+### Create a team (you become the owner)
+# @name createTeam
+POST {{host}}/teams
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "name": "Platform" }
+
+@teamId = {{createTeam.response.body.id}}
+@joinCode = {{createTeam.response.body.joinCode}}
+
+### My teams
+GET {{host}}/teams
+Authorization: Bearer {{token}}
+
+### Team details + members
+GET {{host}}/teams/{{teamId}}
+Authorization: Bearer {{token}}
+
+### Another user joins with the code (use THEIR token)
+POST {{host}}/teams/join
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "joinCode": "{{joinCode}}" }
+
+### Add a member by email (admin/owner only)
+POST {{host}}/teams/{{teamId}}/members
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "email": "bob@example.com", "role": "member" }
+
+### Create a note
+# @name createNote
+POST {{host}}/teams/{{teamId}}/notes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "title": "Design doc", "content": "API layering", "tags": ["work", "design"], "pinned": true }
+
+@noteId = {{createNote.response.body.id}}
+
+### List notes (filters: ?q=text &tag=work &pinned=true)
+GET {{host}}/teams/{{teamId}}/notes?q=design
+Authorization: Bearer {{token}}
+
+### All tags in the team
+GET {{host}}/teams/{{teamId}}/notes/tags
+Authorization: Bearer {{token}}
+
+### Get one note
+GET {{host}}/teams/{{teamId}}/notes/{{noteId}}
+Authorization: Bearer {{token}}
+
+### Update a note (send only the fields to change)
+PATCH {{host}}/teams/{{teamId}}/notes/{{noteId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "content": "Updated content" }
+
+### Delete a note
+DELETE {{host}}/teams/{{teamId}}/notes/{{noteId}}
+Authorization: Bearer {{token}}
