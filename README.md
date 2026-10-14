@@ -13,6 +13,16 @@ First install dependencies:
 npm install
 ```
 
+### Run the test suite
+
+Run unit and API tests with:
+
+```
+npm test
+```
+
+The API tests start their own server and use an in-memory database, so you do not need to start the API separately.
+
 Then start the server:
 
 ```
@@ -28,7 +38,7 @@ npm run build
 npm start
 ```
 
-Other scripts: `npm run typecheck` and `npm test`.
+Other script: `npm run typecheck`.
 
 Try requests with `requests.http` (VSCode "REST Client" extension).
 

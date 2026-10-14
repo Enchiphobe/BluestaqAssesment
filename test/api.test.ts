@@ -80,6 +80,33 @@ describe("seed data and auth", () => {
 });
 
 describe("notes and roles", () => {
+  test("searches notes by title and content within the team", async () => {
+    const notes = `/teams/${demoId}/notes`;
+    const titleMatch = await api("POST", notes, member, {
+      title: "Search probe: nebula",
+      content: "A title match",
+    });
+    const contentMatch = await api("POST", notes, member, {
+      title: "Routine note",
+      content: "A content match mentioning nebula",
+    });
+    const unrelated = await api("POST", notes, member, {
+      title: "Unrelated note",
+      content: "Nothing to find here",
+    });
+
+    assert.equal(titleMatch.status, 201);
+    assert.equal(contentMatch.status, 201);
+    assert.equal(unrelated.status, 201);
+
+    const result = await api("GET", `${notes}?q=nebula`, member);
+    assert.equal(result.status, 200);
+    const resultIds = result.data.map((note: any) => note.id);
+    assert.ok(resultIds.includes(titleMatch.data.id));
+    assert.ok(resultIds.includes(contentMatch.data.id));
+    assert.ok(!resultIds.includes(unrelated.data.id));
+  });
+
   test("members edit their own notes; managers and admins edit any", async () => {
     const notes = `/teams/${demoId}/notes`;
     const welcome = (await api("GET", notes, member)).data.find(
