@@ -5,15 +5,15 @@ Assessment for Bluestaq
 
 Team-based note taking REST API. Express 5 + TypeScript + SQLite (`better-sqlite3`).
 
-## Run it
+# Quickstart Guide
 
-First install dependencies:
+## Install Dependencies
 
 ```
 npm install
 ```
 
-### Run the test suite
+## Run test suite
 
 Run unit and API tests with:
 
@@ -23,28 +23,8 @@ npm test
 
 The API tests start their own server and use an in-memory database, so you do not need to start the API separately.
 
-Then start the server:
-
-```
-npm run dev        # auto-restarts on save (tsx watch)
-```
-
-The server starts on http://localhost:3000 and creates `data/notes.db` on first run.
-
-Production-style:
-
-```
-npm run build
-npm start
-```
-
-Other script: `npm run typecheck`.
-
-Try requests with `requests.http` (VSCode "REST Client" extension).
-
-## Reset the database for a fresh build
-
-If you want to start from a clean SQLite state, remove the existing DB files before restarting the app:
+## Reset DB (Optional)
+The SQLite DB is retained by default. If you want to deploy a fully fresh build, first delete it.
 
 On Windows, use:
 
@@ -58,8 +38,136 @@ On Linux/macOS, use:
 rm -f data/notes.db*
 ```
 
-This clears the SQLite database and related files so the app can recreate the schema and seed data from scratch on the next run.
+Seeded users are created automatically alongside a new db when running in development mode with no existing local db:
 
+- `admin@example.com` / `admin`
+- `manager@example.com` / `manager`
+- `member@example.com` / `member`
+
+Each user also gets a personal team on registration.
+
+## Run Locally
+```
+npm run dev        # auto-restarts on save (tsx watch)
+```
+
+The server starts on http://localhost:3000 and creates `data/notes.db` on first run.
+
+## Run Production-Style
+Production-style:
+
+```
+npm run build
+npm start
+```
+
+## Verify
+### Windows (Powershell)
+#### 1. Log in and keep the token
+```
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:3000/auth/login `
+  -ContentType "application/json" `
+  -Body '{"email":"manager@example.com","password":"manager"}'
+$headers = @{ Authorization = "Bearer $($login.token)" }
+```
+
+#### 2. List your teams
+```
+$teams = Invoke-RestMethod -Uri http://localhost:3000/teams -Headers $headers
+$team = $teams | Where-Object { $_.name -eq "Demo Team" }
+```
+
+#### 3. Create the note
+```
+Invoke-RestMethod -Method Post -Uri "http://localhost:3000/teams/$($team.id)/notes" `
+  -Headers $headers -ContentType "application/json" `
+  -Body '{"title":"This works","content":"This works","tags":["work"],"pinned":true}'
+```
+
+#### 4. Confirm the note landed
+```
+Invoke-RestMethod -Uri "http://localhost:3000/teams/$($team.id)/notes" -Headers $headers
+```
+
+#### 5. Useful admin actions
+```
+$adminLogin = Invoke-RestMethod -Method Post -Uri http://localhost:3000/auth/login `
+  -ContentType "application/json" `
+  -Body '{"email":"admin@example.com","password":"admin"}'
+$adminHeaders = @{ Authorization = "Bearer $($adminLogin.token)" }
+
+# List all teams
+Invoke-RestMethod -Uri http://localhost:3000/teams?all=true -Headers $adminHeaders
+
+# Find the user's ID, then promote them to admin
+$users = Invoke-RestMethod -Uri http://localhost:3000/users -Headers $adminHeaders
+$users | Select-Object id, email, role
+$target = $users | Where-Object { $_.email -eq "member@example.com" }
+Invoke-RestMethod -Method Patch -Uri "http://localhost:3000/users/$($target.id)/role" `
+  -Headers $adminHeaders -ContentType "application/json" `
+  -Body '{"role":"admin"}'
+```
+
+### Linux/macOS (Bash)
+
+These examples use `curl` and `jq` to make the same requests from Bash. Install `jq` if it is not already available.
+
+#### 1. Log in and keep the token
+```bash
+TOKEN=$(curl -fsS -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"manager@example.com","password":"manager"}' | jq -r '.token')
+```
+
+#### 2. Find your Demo Team ID
+```bash
+TEAM_ID=$(curl -fsS http://localhost:3000/teams \
+  -H "Authorization: Bearer $TOKEN" | jq -r '.[] | select(.name == "Demo Team") | .id')
+```
+
+#### 3. Create a note
+```bash
+curl -fsS -X POST "http://localhost:3000/teams/$TEAM_ID/notes" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"This works","content":"This works","tags":["work"],"pinned":true}'
+```
+
+#### 4. Search notes and confirm it landed
+```bash
+curl -fsS --get "http://localhost:3000/teams/$TEAM_ID/notes" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode 'q=This works'
+```
+
+#### 5. Useful admin actions
+```bash
+ADMIN_TOKEN=$(curl -fsS -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"admin"}' | jq -r '.token')
+
+# List all teams
+curl -fsS 'http://localhost:3000/teams?all=true' \
+  -H "Authorization: Bearer $ADMIN_TOKEN" | jq
+
+# Find the user's ID, then promote them to admin
+USERS=$(curl -fsS http://localhost:3000/users \
+  -H "Authorization: Bearer $ADMIN_TOKEN")
+printf '%s\n' "$USERS" | jq '.[] | {id, email, role}'
+TARGET_ID=$(printf '%s\n' "$USERS" | jq -r '.[] | select(.email == "member@example.com") | .id')
+curl -fsS -X PATCH "http://localhost:3000/users/$TARGET_ID/role" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"role":"admin"}'
+```
+
+### Other Notes
+Other scripts: `npm run typecheck`.
+
+Try requests with `requests.http` (VSCode "REST Client" extension).
+
+
+# Development Guide 
 ## Configuration
 
 Environment variables (see `env.example`).
@@ -128,56 +236,3 @@ Access rules:
 - `member` can read notes, create notes, and edit their own notes.
 - Personal teams are intentionally restricted to the owner and admins and cannot be shared or modified by others.
 - Public teams can be joined by any logged-in user; private teams cannot be joined by ID.
-
-# 1. Log in and keep the token
-```
-$login = Invoke-RestMethod -Method Post -Uri http://localhost:3000/auth/login `
-  -ContentType "application/json" `
-  -Body '{"email":"manager@example.com","password":"manager"}'
-$headers = @{ Authorization = "Bearer $($login.token)" }
-```
-
-# 2. List your teams
-```
-$teams = Invoke-RestMethod -Uri http://localhost:3000/teams -Headers $headers
-$team = $teams | Where-Object { $_.name -eq "Demo Team" }
-```
-
-# 3. Create the note
-```
-Invoke-RestMethod -Method Post -Uri "http://localhost:3000/teams/$($team.id)/notes" `
-  -Headers $headers -ContentType "application/json" `
-  -Body '{"title":"This works","content":"This works","tags":["work"],"pinned":true}'
-```
-
-# 4. Confirm the note landed
-```
-Invoke-RestMethod -Uri "http://localhost:3000/teams/$($team.id)/notes" -Headers $headers
-```
-
-# 5. Useful admin actions
-```
-$adminLogin = Invoke-RestMethod -Method Post -Uri http://localhost:3000/auth/login `
-  -ContentType "application/json" `
-  -Body '{"email":"admin@example.com","password":"admin"}'
-$adminHeaders = @{ Authorization = "Bearer $($adminLogin.token)" }
-
-# List all teams
-Invoke-RestMethod -Uri http://localhost:3000/teams?all=true -Headers $adminHeaders
-
-# Find the user's ID, then promote them to admin
-$users = Invoke-RestMethod -Uri http://localhost:3000/users -Headers $adminHeaders
-$users | Select-Object id, email, role
-$target = $users | Where-Object { $_.email -eq "member@example.com" }
-Invoke-RestMethod -Method Patch -Uri "http://localhost:3000/users/$($target.id)/role" `
-  -Headers $adminHeaders -ContentType "application/json" `
-  -Body '{"role":"admin"}'
-```
-
-Seeded users are created automatically in development mode:
-
-- `admin@example.com` / `admin`
-- `manager@example.com` / `manager`
-- `member@example.com` / `member`
-
-Each user also gets a personal team on registration.
