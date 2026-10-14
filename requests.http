@@ -3,14 +3,14 @@
 
 @host = http://localhost:3000
 
-### Register (run once per user; change the email to create more users)
+### Register a new user
 # @name register
 POST {{host}}/auth/register
 Content-Type: application/json
 
 { "email": "alice@example.com", "password": "password123", "name": "Alice" }
 
-### Login
+### Log in
 # @name login
 POST {{host}}/auth/login
 Content-Type: application/json
@@ -23,38 +23,45 @@ Content-Type: application/json
 GET {{host}}/auth/me
 Authorization: Bearer {{token}}
 
-### Create a team (you become the owner)
+### Create a team (default visibility is private)
 # @name createTeam
 POST {{host}}/teams
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{ "name": "Platform" }
+{ "name": "Platform", "visibility": "private" }
 
 @teamId = {{createTeam.response.body.id}}
-@joinCode = {{createTeam.response.body.joinCode}}
 
-### My teams
+### List my teams
 GET {{host}}/teams
 Authorization: Bearer {{token}}
 
-### Team details + members
+### List public teams I have not joined yet
+GET {{host}}/teams/public
+Authorization: Bearer {{token}}
+
+### Team detail + members
 GET {{host}}/teams/{{teamId}}
 Authorization: Bearer {{token}}
 
-### Another user joins with the code (use THEIR token)
-POST {{host}}/teams/join
+### Update a team
+PATCH {{host}}/teams/{{teamId}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{ "joinCode": "{{joinCode}}" }
+{ "name": "Platform Team", "visibility": "public" }
 
-### Add a member by email (admin/owner only)
+### Add a member by email (manager or admin only)
 POST {{host}}/teams/{{teamId}}/members
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "email": "bob@example.com", "role": "member" }
+
+### Join a public team
+POST {{host}}/teams/<public-team-id>/join
+Authorization: Bearer {{token}}
 
 ### Create a note
 # @name createNote
@@ -70,7 +77,7 @@ Content-Type: application/json
 GET {{host}}/teams/{{teamId}}/notes?q=design
 Authorization: Bearer {{token}}
 
-### All tags in the team
+### List team tag values
 GET {{host}}/teams/{{teamId}}/notes/tags
 Authorization: Bearer {{token}}
 
@@ -88,3 +95,14 @@ Content-Type: application/json
 ### Delete a note
 DELETE {{host}}/teams/{{teamId}}/notes/{{noteId}}
 Authorization: Bearer {{token}}
+
+### List all teams as an admin
+GET {{host}}/teams?all=true
+Authorization: Bearer {{token}}
+
+### Change a user's global role (admin only)
+PATCH {{host}}/users/<user-id>/role
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "role": "admin" }
