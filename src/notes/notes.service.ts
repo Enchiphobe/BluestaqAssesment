@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
+import { DEFAULT_PAGINATION, PageResult, PaginationParams } from "../pagination";
 import { Membership, Note } from "../types";
 import * as notesRepository from "./notes.repository";
 import { NoteFilters } from "./notes.repository";
@@ -58,8 +59,12 @@ function getOrThrow(teamId: string, noteId: string): Note {
   return note;
 }
 
-export function list(teamId: string, filters: NoteFilters): Note[] {
-  return notesRepository.findAll(teamId, filters);
+export function list(
+  teamId: string,
+  filters: NoteFilters,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<Note> {
+  return notesRepository.findAll(teamId, filters, pagination);
 }
 
 export function listTags(teamId: string): string[] {

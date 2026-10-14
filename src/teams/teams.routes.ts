@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getUser } from "../middleware/authenticate";
 import { getMembership, requireTeamAccess } from "../middleware/requireTeamAccess";
+import { parsePagination, sendPaginated } from "../pagination";
 import * as teamsService from "./teams.service";
 
 const router = Router();
@@ -13,18 +14,28 @@ router.post("/", (req, res) => {
 // My teams. Admins can pass ?all=true to list every team.
 router.get("/", (req, res) => {
   const user = getUser(req);
-  res.json(req.query.all === "true" ? teamsService.listAll(user) : teamsService.listForUser(user));
+  const pagination = parsePagination(req.query.page, req.query.limit);
+  const result = req.query.all === "true"
+    ? teamsService.listAll(user, pagination)
+    : teamsService.listForUser(user, pagination);
+  sendPaginated(res, result, pagination);
 });
 
 // Public teams I haven't joined. Must be declared before "/:teamId".
 router.get("/public", (req, res) => {
-  res.json(teamsService.listPublic(getUser(req)));
+  const pagination = parsePagination(req.query.page, req.query.limit);
+  sendPaginated(res, teamsService.listPublic(getUser(req), pagination), pagination);
 });
 
 // Join a public team. Deliberately has no requireTeamAccess: you aren't a member yet.
 router.post("/:teamId/join", (req, res) => {
   teamsService.join(getUser(req), req.params.teamId as string);
   res.status(204).end();
+});
+
+router.get("/:teamId/members", requireTeamAccess, (req, res) => {
+  const pagination = parsePagination(req.query.page, req.query.limit);
+  sendPaginated(res, teamsService.listMembers(getMembership(req), pagination), pagination);
 });
 
 router.get("/:teamId", requireTeamAccess, (req, res) => {

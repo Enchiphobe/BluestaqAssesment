@@ -16,7 +16,7 @@ async function api(method: string, path: string, token?: string, body?: unknown)
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const text = await res.text();
-  return { status: res.status, data: text ? JSON.parse(text) : null };
+  return { status: res.status, data: text ? JSON.parse(text) : null, headers: res.headers };
 }
 
 const login = async (name: string) =>
@@ -219,5 +219,52 @@ describe("admins", () => {
 
     const adminId = (await api("GET", "/auth/me", admin)).data.id;
     assert.equal((await api("PATCH", `/users/${adminId}/role`, admin, { role: "user" })).status, 403);
+  });
+});
+
+describe("pagination and throttling", () => {
+  test("paginates collection endpoints and reports totals in headers", async () => {
+    const teamPage = await api("GET", "/teams?page=2&limit=1", manager);
+    assert.equal(teamPage.status, 200);
+    assert.equal(teamPage.data.length, 1);
+    assert.equal(teamPage.headers.get("x-total-count"), "3");
+    assert.equal(teamPage.headers.get("x-page"), "2");
+    assert.equal(teamPage.headers.get("x-page-size"), "1");
+    assert.equal(teamPage.headers.get("x-total-pages"), "3");
+
+    const notePage = await api("GET", `/teams/${demoId}/notes?page=1&limit=1`, member);
+    assert.equal(notePage.status, 200);
+    assert.equal(notePage.data.length, 1);
+    assert.ok(Number(notePage.headers.get("x-total-count")) > 1);
+
+    const memberPage = await api("GET", `/teams/${demoId}/members?page=2&limit=1`, manager);
+    assert.equal(memberPage.status, 200);
+    assert.equal(memberPage.data.length, 1);
+    assert.equal(memberPage.headers.get("x-total-count"), "2");
+
+    const userPage = await api("GET", "/users?page=2&limit=1", admin);
+    assert.equal(userPage.status, 200);
+    assert.equal(userPage.data.length, 1);
+    assert.ok(Number(userPage.headers.get("x-total-count")) >= 3);
+
+    assert.equal((await api("GET", "/teams?page=0", manager)).status, 400);
+    assert.equal((await api("GET", "/teams?limit=101", manager)).status, 400);
+  });
+
+  test("applies the stricter registration limit", async () => {
+    const attempts = [];
+    for (let attempt = 0; attempt < 6; attempt++) {
+      attempts.push(await api("POST", "/auth/register", undefined, {}));
+    }
+    assert.equal(attempts.at(-1)?.status, 429);
+    assert.equal(attempts.at(-1)?.data.error, "Too many requests. Please try again later.");
+  });
+
+  test("applies the default throttle to all routes, including health", async () => {
+    let response = await api("GET", "/health");
+    for (let request = 1; request < 301 && response.status !== 429; request++) {
+      response = await api("GET", "/health");
+    }
+    assert.equal(response.status, 429);
   });
 });

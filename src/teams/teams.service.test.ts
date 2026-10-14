@@ -31,7 +31,7 @@ function getUser(name: string) {
 
 function getTeamForUser(userName: string, teamName: string) {
   const user = getUser(userName);
-  return teamsRepository.listForUser(user.id).find((team: any) => team.name === teamName)!;
+  return teamsRepository.listForUser(user.id).items.find((team: any) => team.name === teamName)!;
 }
 
 describe("teams.service", () => {
@@ -43,7 +43,7 @@ describe("teams.service", () => {
     const created = teamsService.create(manager, { name: "Launch Team" });
     assert.equal(created.role, "manager");
     assert.equal(created.visibility, "private");
-    assert.ok(teamsService.listForUser(manager).some((team: any) => team.id === created.id));
+    assert.ok(teamsService.listForUser(manager).items.some((team: any) => team.id === created.id));
 
     const updated = teamsService.update(
       { userId: manager.id, teamId: created.id, role: "manager" },
@@ -56,7 +56,7 @@ describe("teams.service", () => {
       () => teamsService.listAll(manager),
       (error: any) => error instanceof ErrorTypes.ForbiddenError
     );
-    assert.ok(teamsService.listAll(admin).some((team: any) => team.id === created.id));
+    assert.ok(teamsService.listAll(admin).items.some((team: any) => team.id === created.id));
 
     const publicTeam = getTeamForUser("member", "Open Team");
     const newcomer = await authService.register({ email: `joiner-${Date.now()}@example.com`, password: "password123", name: "Joiner" });
@@ -73,7 +73,7 @@ describe("teams.service", () => {
     teamsService.removeMember(actorMembership, newcomer.user.id);
     assert.equal(teamsRepository.getMembership(created.id, newcomer.user.id), undefined);
 
-    const personalTeam = teamsRepository.listForUser(manager.id).find((team: any) => team.visibility === "personal")!;
+    const personalTeam = teamsRepository.listForUser(manager.id).items.find((team: any) => team.visibility === "personal")!;
     assert.throws(
       () => teamsService.update({ userId: manager.id, teamId: personalTeam.id, role: "manager" }, { name: "Nope" }),
       (error: any) => error instanceof ErrorTypes.ForbiddenError

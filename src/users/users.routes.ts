@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { getUser } from "../middleware/authenticate";
+import { parsePagination, sendPaginated } from "../pagination";
 import * as usersService from "./users.service";
 
 const router = Router();
 
 router.get("/", (req, res) => {
-  res.json(usersService.list(getUser(req)));
+  const pagination = parsePagination(req.query.page, req.query.limit);
+  sendPaginated(res, usersService.list(getUser(req), pagination), pagination);
 });
 
 router.patch("/:userId/role", (req, res) => {

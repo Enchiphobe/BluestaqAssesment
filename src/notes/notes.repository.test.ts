@@ -24,14 +24,14 @@ beforeEach(async () => {
 describe("notes.repository", () => {
   test("filters and persists notes with author metadata", () => {
     const manager = usersRepository.findByEmail("manager@example.com")!;
-    const team = teamsRepository.listForUser(manager.id).find((item: any) => item.name === "Demo Team")!;
+    const team = teamsRepository.listForUser(manager.id).items.find((item: any) => item.name === "Demo Team")!;
 
-    const note = notesRepository.findAll(team.id).find((item: any) => item.title === "Welcome to Demo Team");
+    const note = notesRepository.findAll(team.id).items.find((item: any) => item.title === "Welcome to Demo Team");
     assert.ok(note);
     assert.equal(note.authorName, "manager");
 
     const filtered = notesRepository.findAll(team.id, { q: "welcome", pinned: true });
-    assert.deepEqual(filtered.map((item: any) => item.id), [note.id]);
+    assert.deepEqual(filtered.items.map((item: any) => item.id), [note.id]);
 
     assert.ok(notesRepository.listTags(team.id).includes("welcome"));
 

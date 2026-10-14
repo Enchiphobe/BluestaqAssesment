@@ -23,7 +23,7 @@ beforeEach(async () => {
 describe("teams.repository", () => {
   test("reads membership metadata and updates roles safely", () => {
     const user = usersRepository.findByEmail("member@example.com")!;
-    const team = teamsRepository.listForUser(user.id).find((item: any) => item.name === "Open Team")!;
+    const team = teamsRepository.listForUser(user.id).items.find((item: any) => item.name === "Open Team")!;
 
     const freshUser = {
       id: randomUUID(),

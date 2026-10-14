@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { DEFAULT_PAGINATION, PageResult, PaginationParams } from "../pagination";
 import { Member, Membership, PublicTeam, Team, TeamRole, TeamWithRole } from "../types";
 
 export function insertWithManager(team: Team, managerId: string): void {
@@ -20,33 +21,54 @@ export function findById(teamId: string): Team | undefined {
   return db.prepare("SELECT * FROM teams WHERE id = ?").get(teamId) as Team | undefined;
 }
 
-export function listForUser(userId: string): TeamWithRole[] {
-  return db
+export function listForUser(
+  userId: string,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<TeamWithRole> {
+  const total = (db
+    .prepare("SELECT COUNT(*) AS total FROM memberships WHERE userId = ?")
+    .get(userId) as { total: number }).total;
+  const items = db
     .prepare(
       `SELECT t.*, m.role FROM teams t
        JOIN memberships m ON m.teamId = t.id
        WHERE m.userId = ?
-       ORDER BY t.name`
+       ORDER BY t.name
+       LIMIT ? OFFSET ?`
     )
-    .all(userId) as TeamWithRole[];
+    .all(userId, pagination.limit, pagination.offset) as TeamWithRole[];
+  return { items, total };
 }
 
-export function listAll(): Team[] {
-  return db.prepare("SELECT * FROM teams ORDER BY name").all() as Team[];
+export function listAll(pagination: PaginationParams = DEFAULT_PAGINATION): PageResult<Team> {
+  const total = (db.prepare("SELECT COUNT(*) AS total FROM teams").get() as { total: number }).total;
+  const items = db
+    .prepare("SELECT * FROM teams ORDER BY name LIMIT ? OFFSET ?")
+    .all(pagination.limit, pagination.offset) as Team[];
+  return { items, total };
 }
 
 /** Public teams the user hasn't joined yet. */
-export function listPublicNotJoined(userId: string): PublicTeam[] {
-  return db
+export function listPublicNotJoined(
+  userId: string,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<PublicTeam> {
+  const where = `t.visibility = 'public'
+    AND NOT EXISTS (
+      SELECT 1 FROM memberships m WHERE m.teamId = t.id AND m.userId = ?
+    )`;
+  const total = (db
+    .prepare(`SELECT COUNT(*) AS total FROM teams t WHERE ${where}`)
+    .get(userId) as { total: number }).total;
+  const items = db
     .prepare(
       `SELECT t.id, t.name, t.createdAt FROM teams t
-       WHERE t.visibility = 'public'
-         AND NOT EXISTS (
-           SELECT 1 FROM memberships m WHERE m.teamId = t.id AND m.userId = ?
-         )
-       ORDER BY t.name`
+       WHERE ${where}
+       ORDER BY t.name
+       LIMIT ? OFFSET ?`
     )
-    .all(userId) as PublicTeam[];
+    .all(userId, pagination.limit, pagination.offset) as PublicTeam[];
+  return { items, total };
 }
 
 export function getMembership(teamId: string, userId: string): Membership | undefined {
@@ -55,15 +77,33 @@ export function getMembership(teamId: string, userId: string): Membership | unde
     .get(teamId, userId) as Membership | undefined;
 }
 
-export function listMembers(teamId: string): Member[] {
-  return db
+export function listMembers(
+  teamId: string,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<Member> {
+  const total = (db
+    .prepare("SELECT COUNT(*) AS total FROM memberships WHERE teamId = ?")
+    .get(teamId) as { total: number }).total;
+  const items = db
     .prepare(
       `SELECT u.id AS userId, u.name, u.email, m.role, m.joinedAt
        FROM memberships m JOIN users u ON u.id = m.userId
        WHERE m.teamId = ?
-       ORDER BY m.joinedAt`
+       ORDER BY m.joinedAt
+       LIMIT ? OFFSET ?`
     )
-    .all(teamId) as Member[];
+    .all(teamId, pagination.limit, pagination.offset) as Member[];
+  return { items, total };
+}
+
+export function findMember(teamId: string, userId: string): Member | undefined {
+  return db
+    .prepare(
+      `SELECT u.id AS userId, u.name, u.email, m.role, m.joinedAt
+       FROM memberships m JOIN users u ON u.id = m.userId
+       WHERE m.teamId = ? AND m.userId = ?`
+    )
+    .get(teamId, userId) as Member | undefined;
 }
 
 export function countManagers(teamId: string): number {

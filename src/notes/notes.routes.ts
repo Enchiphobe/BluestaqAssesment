@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getMembership } from "../middleware/requireTeamAccess";
+import { parsePagination, sendPaginated } from "../pagination";
 import * as notesService from "./notes.service";
 
 // Mounted at /teams/:teamId/notes, behind authenticate + requireTeamMember.
@@ -14,12 +15,15 @@ router.get("/", (req, res) => {
   const pinned = asString(req.query.pinned);
   const q = asString(req.query.q);
   const tag = asString(req.query.tag);
-  res.json(
+  const pagination = parsePagination(req.query.page, req.query.limit);
+  sendPaginated(
+    res,
     notesService.list(teamId, {
       ...(q ? { q } : {}),
       ...(tag ? { tag } : {}),
       ...(pinned === undefined ? {} : { pinned: pinned === "true" }),
-    })
+    }, pagination),
+    pagination
   );
 });
 

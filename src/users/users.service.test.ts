@@ -31,7 +31,7 @@ describe("users.service", () => {
     const manager = getUser("manager");
 
     const list = usersService.list(admin);
-    assert.ok(list.some((user: any) => user.email === "manager@example.com"));
+    assert.ok(list.items.some((user: any) => user.email === "manager@example.com"));
 
     assert.throws(
       () => usersService.list(manager),

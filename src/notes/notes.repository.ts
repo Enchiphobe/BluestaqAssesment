@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { DEFAULT_PAGINATION, PageResult, PaginationParams } from "../pagination";
 import { Note } from "../types";
 
 // Every function takes teamId, so an unscoped note query can't be written by accident.
@@ -23,7 +24,11 @@ function toNote(row: NoteRow): Note {
   return { ...row, tags: JSON.parse(row.tags), pinned: row.pinned === 1 };
 }
 
-export function findAll(teamId: string, filters: NoteFilters = {}): Note[] {
+export function findAll(
+  teamId: string,
+  filters: NoteFilters = {},
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<Note> {
   const where = ["n.teamId = ?"];
   const params: (string | number)[] = [teamId];
 
@@ -41,10 +46,15 @@ export function findAll(teamId: string, filters: NoteFilters = {}): Note[] {
     params.push(filters.pinned ? 1 : 0);
   }
 
+  const total = (db
+    .prepare(`SELECT COUNT(*) AS total FROM notes n WHERE ${where.join(" AND ")}`)
+    .get(...params) as { total: number }).total;
   const rows = db
-    .prepare(`${SELECT_NOTE} WHERE ${where.join(" AND ")} ORDER BY n.pinned DESC, n.updatedAt DESC`)
-    .all(...params) as NoteRow[];
-  return rows.map(toNote);
+    .prepare(
+      `${SELECT_NOTE} WHERE ${where.join(" AND ")} ORDER BY n.pinned DESC, n.updatedAt DESC LIMIT ? OFFSET ?`
+    )
+    .all(...params, pagination.limit, pagination.offset) as NoteRow[];
+  return { items: rows.map(toNote), total };
 }
 
 export function findById(teamId: string, noteId: string): Note | undefined {

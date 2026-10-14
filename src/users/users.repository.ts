@@ -1,4 +1,5 @@
 import { db } from "../db";
+import { DEFAULT_PAGINATION, PageResult, PaginationParams } from "../pagination";
 import { GlobalRole, User, UserWithHash } from "../types";
 
 export function findById(id: string): User | undefined {
@@ -13,10 +14,12 @@ export function findByEmail(email: string): UserWithHash | undefined {
     | undefined;
 }
 
-export function listAll(): User[] {
-  return db
-    .prepare("SELECT id, email, name, role, createdAt FROM users ORDER BY createdAt")
-    .all() as User[];
+export function listAll(pagination: PaginationParams = DEFAULT_PAGINATION): PageResult<User> {
+  const total = (db.prepare("SELECT COUNT(*) AS total FROM users").get() as { total: number }).total;
+  const items = db
+    .prepare("SELECT id, email, name, role, createdAt FROM users ORDER BY createdAt LIMIT ? OFFSET ?")
+    .all(pagination.limit, pagination.offset) as User[];
+  return { items, total };
 }
 
 export function insert(user: UserWithHash): void {

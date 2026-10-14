@@ -6,8 +6,10 @@ import notesRoutes from "./notes/notes.routes";
 import { authenticate } from "./middleware/authenticate";
 import { requireTeamAccess } from "./middleware/requireTeamAccess";
 import { errorHandler, notFound } from "./middleware/errorHandler";
+import { apiRateLimit } from "./middleware/rateLimit";
 
 const app = express();
+app.use(apiRateLimit);
 app.use(express.json({ limit: "100kb" }));
 
 // Public

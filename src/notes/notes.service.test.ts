@@ -28,7 +28,7 @@ function getUser(name: string) {
 }
 
 function getDemoTeam() {
-  return teamsRepository.listForUser(getUser("manager").id).find((team: any) => team.name === "Demo Team")!;
+  return teamsRepository.listForUser(getUser("manager").id).items.find((team: any) => team.name === "Demo Team")!;
 }
 
 describe("notes.service", () => {
@@ -49,7 +49,7 @@ describe("notes.service", () => {
 
     assert.equal(note.title, "Quarterly review");
     assert.deepEqual(note.tags, ["work", "planning"]);
-    assert.equal(notesService.list(demoTeam.id, { pinned: true }).length > 0, true);
+    assert.equal(notesService.list(demoTeam.id, { pinned: true }).items.length > 0, true);
     assert.ok(notesService.listTags(demoTeam.id).includes("welcome"));
 
     const memberNote = notesService.create(memberMembership, {

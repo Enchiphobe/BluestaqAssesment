@@ -1,4 +1,5 @@
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
+import { DEFAULT_PAGINATION, PageResult, PaginationParams } from "../pagination";
 import { User } from "../types";
 import * as usersRepository from "./users.repository";
 
@@ -6,9 +7,12 @@ function assertAdmin(actor: User): void {
   if (actor.role !== "admin") throw new ForbiddenError("Only admins can do that");
 }
 
-export function list(actor: User): User[] {
+export function list(
+  actor: User,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<User> {
   assertAdmin(actor);
-  return usersRepository.listAll();
+  return usersRepository.listAll(pagination);
 }
 
 export function changeRole(actor: User, targetUserId: string, roleInput: unknown): User {

@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { authenticate, getUser } from "../middleware/authenticate";
+import { registrationRateLimit } from "../middleware/rateLimit";
 import * as authService from "./auth.service";
 
 const router = Router();
 
-router.post("/register", async (req, res) => {
+router.post("/register", registrationRateLimit, async (req, res) => {
   const result = await authService.register(req.body ?? {});
   res.status(201).json(result);
 });

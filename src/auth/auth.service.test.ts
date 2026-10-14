@@ -30,7 +30,7 @@ describe("auth.service", () => {
     assert.equal(result.user.role, "user");
     assert.ok(result.token);
 
-    const personalTeam = usersRepository.listAll().find((user: any) => user.email === email) ? true : false;
+    const personalTeam = usersRepository.listAll().items.find((user: any) => user.email === email) ? true : false;
     assert.equal(personalTeam, true);
 
     const loginResult = await authService.login({ email, password: "password123" });

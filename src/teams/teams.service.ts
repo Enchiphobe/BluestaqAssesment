@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
+import { DEFAULT_PAGINATION, PageResult, PaginationParams } from "../pagination";
 import * as usersRepository from "../users/users.repository";
 import { Member, Membership, PublicTeam, Team, TeamRole, TeamWithRole, User } from "../types";
 import * as teamsRepository from "./teams.repository";
@@ -58,25 +59,40 @@ export function create(user: User, input: { name?: unknown; visibility?: unknown
   return { ...team, role: "manager" };
 }
 
-export function listForUser(user: User): TeamWithRole[] {
-  return teamsRepository.listForUser(user.id);
+export function listForUser(
+  user: User,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<TeamWithRole> {
+  return teamsRepository.listForUser(user.id, pagination);
 }
 
-export function listAll(user: User): Team[] {
+export function listAll(
+  user: User,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<Team> {
   if (user.role !== "admin") throw new ForbiddenError("Only admins can list every team");
-  return teamsRepository.listAll();
+  return teamsRepository.listAll(pagination);
 }
 
-export function listPublic(user: User): PublicTeam[] {
-  return teamsRepository.listPublicNotJoined(user.id);
+export function listPublic(
+  user: User,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<PublicTeam> {
+  return teamsRepository.listPublicNotJoined(user.id, pagination);
 }
 
-export function get(actor: Membership): { team: Team; role: TeamRole; members: Member[] } {
+export function get(actor: Membership): { team: Team; role: TeamRole } {
   return {
     team: getTeam(actor.teamId),
     role: actor.role,
-    members: teamsRepository.listMembers(actor.teamId),
   };
+}
+
+export function listMembers(
+  actor: Membership,
+  pagination: PaginationParams = DEFAULT_PAGINATION
+): PageResult<Member> {
+  return teamsRepository.listMembers(actor.teamId, pagination);
 }
 
 export function update(actor: Membership, input: { name?: unknown; visibility?: unknown }): Team {
@@ -132,7 +148,7 @@ export function addMember(actor: Membership, emailInput: unknown, roleInput: unk
   }
 
   teamsRepository.addMember(actor.teamId, target.id, role);
-  return teamsRepository.listMembers(actor.teamId).find((m) => m.userId === target.id)!;
+  return teamsRepository.findMember(actor.teamId, target.id)!;
 }
 
 export function removeMember(actor: Membership, targetUserId: string): void {
