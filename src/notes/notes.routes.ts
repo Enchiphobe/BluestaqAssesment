@@ -12,11 +12,13 @@ const asString = (value: unknown): string | undefined =>
 router.get("/", (req, res) => {
   const { teamId } = getMembership(req);
   const pinned = asString(req.query.pinned);
+  const q = asString(req.query.q);
+  const tag = asString(req.query.tag);
   res.json(
     notesService.list(teamId, {
-      q: asString(req.query.q),
-      tag: asString(req.query.tag),
-      pinned: pinned === undefined ? undefined : pinned === "true",
+      ...(q ? { q } : {}),
+      ...(tag ? { tag } : {}),
+      ...(pinned === undefined ? {} : { pinned: pinned === "true" }),
     })
   );
 });

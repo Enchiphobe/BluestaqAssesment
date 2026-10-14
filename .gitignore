@@ -5,3 +5,11 @@ data
 *.db
 *.db-wal
 *.db-shm
+/src/**/*.js
+/src/**/*.js.map
+/src/**/*.d.ts
+/src/**/*.d.ts.map
+/test/**/*.js
+/test/**/*.js.map
+/test/**/*.d.ts
+/test/**/*.d.ts.map

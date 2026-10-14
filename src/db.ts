@@ -7,7 +7,7 @@ if (DB_PATH !== ":memory:") {
   fs.mkdirSync(path.dirname(path.resolve(DB_PATH)), { recursive: true });
 }
 
-export const db = new Database(DB_PATH);
+export const db: InstanceType<typeof Database> = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 

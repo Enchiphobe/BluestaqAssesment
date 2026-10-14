@@ -2,12 +2,13 @@
   "name": "notes-api",
   "version": "1.0.0",
   "private": true,
+  "type": "commonjs",
   "description": "Team-based note taking REST API (Express + TypeScript + SQLite)",
-  "main": "dist/server.js",
+  "main": "dist/src/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },

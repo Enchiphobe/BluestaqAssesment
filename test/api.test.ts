@@ -13,7 +13,7 @@ async function api(method: string, path: string, token?: string, body?: unknown)
       "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const text = await res.text();
   return { status: res.status, data: text ? JSON.parse(text) : null };
